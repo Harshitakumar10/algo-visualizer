@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Algorithm Visualizer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-logo">🗺</div>
+    <div>
+      <div class="header-title">AI Algorithm Visualizer</div>
+      <div class="header-sub">Graph-based pathfinding — A*, BFS, DFS, UCS</div>
+    </div>
+  </div>
+
+  <!-- MAIN LAYOUT -->
+  <div class="layout">
+
+    <!-- ── SIDEBAR ── -->
+    <div class="sidebar">
+
+      <!-- Algorithm Picker -->
+      <div>
+        <div class="section-label">Algorithm</div>
+        <div class="algo-pills">
+
+          <div class="algo-pill active" data-algo="astar" onclick="pickAlgo('astar')">
+            <div class="algo-dot" style="background:#4f46e5"></div>
+            <div class="algo-info">
+              <div class="algo-name">A* Search</div>
+              <div class="algo-tag">Optimal · Uses heuristic</div>
+            </div>
+          </div>
+
+          <div class="algo-pill" data-algo="bfs" onclick="pickAlgo('bfs')">
+            <div class="algo-dot" style="background:#059669"></div>
+            <div class="algo-info">
+              <div class="algo-name">BFS</div>
+              <div class="algo-tag">Shortest path · Layer by layer</div>
+            </div>
+          </div>
+
+          <div class="algo-pill" data-algo="dfs" onclick="pickAlgo('dfs')">
+            <div class="algo-dot" style="background:#ea580c"></div>
+            <div class="algo-info">
+              <div class="algo-name">DFS</div>
+              <div class="algo-tag">Deep dive · Not always optimal</div>
+            </div>
+          </div>
+
+          <div class="algo-pill" data-algo="ucs" onclick="pickAlgo('ucs')">
+            <div class="algo-dot" style="background:#ca8a04"></div>
+            <div class="algo-info">
+              <div class="algo-name">UCS</div>
+              <div class="algo-tag">Cheapest path · Cost-aware</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Nodes -->
+      <div>
+        <div class="section-label">Nodes</div>
+        <div class="input-row">
+          <input type="text" id="node-name" placeholder="Node name (A, B…)" maxlength="4" />
+          <button class="add-btn" onclick="addNode()">+ Add Node</button>
+        </div>
+        <div class="chip-wrap" id="node-chips"></div>
+      </div>
+
+      <!-- Edges -->
+      <div>
+        <div class="section-label">Edges (connections)</div>
+        <div class="input-row-3">
+          <input type="text"   id="edge-from" placeholder="From" />
+          <input type="text"   id="edge-to"   placeholder="To" />
+          <input type="number" id="edge-w"    placeholder="W" value="1" min="1" max="99" />
+        </div>
+        <button class="add-btn" onclick="addEdge()" style="margin-bottom:6px;">
+          + Add Edge (weight optional)
+        </button>
+        <div class="chip-wrap" id="edge-chips"></div>
+      </div>
+
+      <!-- Quick Presets -->
+      <div>
+        <div class="section-label">Quick Examples</div>
+        <div class="preset-wrap">
+          <button class="preset-btn" onclick="loadPreset('simple')">Simple graph</button>
+          <button class="preset-btn" onclick="loadPreset('weighted')">Weighted graph</button>
+          <button class="preset-btn" onclick="loadPreset('complex')">Complex graph</button>
+        </div>
+      </div>
+
+      <!-- Start & Goal -->
+      <div>
+        <div class="section-label">Start &amp; Goal</div>
+        <div class="se-row">
+          <div>
+            <div class="se-label">Start node</div>
+            <select id="sel-start"></select>
+          </div>
+          <div>
+            <div class="se-label">Goal node</div>
+            <select id="sel-end"></select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Speed -->
+      <div>
+        <div class="section-label">Animation Speed</div>
+        <div class="speed-row">
+          <label>Slow</label>
+          <input type="range" min="1" max="5" value="3" step="1" id="spd" oninput="setSpeed(this.value)" />
+          <span id="spdlbl">Medium</span>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="action-section">
+        <button class="run-btn" id="run-btn" onclick="runAlgo()">▶ &nbsp; Run Visualization</button>
+        <div class="action-row">
+          <button class="sm-btn"        onclick="clearViz()">↺ Clear Result</button>
+          <button class="sm-btn danger" onclick="clearAll()">✕ Reset All</button>
+        </div>
+      </div>
+
+    </div>
+    <!-- ── END SIDEBAR ── -->
+
+    <!-- ── CANVAS AREA ── -->
+    <div class="canvas-area">
+
+      <!-- Top bar: status + legend + stats -->
+      <div class="canvas-header">
+
+        <div class="status-pill" id="status-pill">
+          <div class="sdot"></div>
+          <span id="status-txt">Add nodes and edges, then run</span>
+        </div>
+
+        <div class="legend-row">
+          <div class="leg"><div class="leg-line" style="background:#d1d5db"></div>Edge</div>
+          <div class="leg"><div class="leg-line" style="background:#a78bfa;height:4px"></div>Exploring</div>
+          <div class="leg"><div class="leg-line" style="background:#10b981;height:5px"></div>Optimal path</div>
+          <div class="leg"><div class="leg-circle" style="background:#4f46e5"></div>Visited</div>
+          <div class="leg"><div class="leg-circle" style="background:#10b981;border:2px solid #065f46"></div>Start</div>
+          <div class="leg"><div class="leg-circle" style="background:#ef4444;border:2px solid #991b1b"></div>Goal</div>
+        </div>
+
+        <div class="stats-row">
+          <div class="stat-badge">Explored: <b id="stat-exp">—</b></div>
+          <div class="stat-badge">Path: <b id="stat-path">—</b></div>
+          <div class="stat-badge">Cost: <b id="stat-cost">—</b></div>
+        </div>
+
+      </div>
+
+      <!-- Graph canvas -->
+      <canvas id="canvas"></canvas>
+
+      <!-- Step-by-step log -->
+      <div class="step-log" id="step-log">
+        <span class="log-placeholder">Exploration steps will appear here…</span>
+      </div>
+
+    </div>
+    <!-- ── END CANVAS AREA ── -->
+
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
