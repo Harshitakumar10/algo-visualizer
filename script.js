@@ -435,16 +435,22 @@ function solve() {
     }
 
   // ── A* ───────────────────────────────────────────────────
-  } else {
+ } else {
     const g      = { [startNode]: 0 };
     const f      = { [startNode]: heuristic(startNode) };
     const open   = new Set([startNode]);
     const closed = new Set();
 
     while (open.size) {
-      // Pick node with lowest f value
       const cur = [...open].reduce((a, b) => (f[a] || Infinity) < (f[b] || Infinity) ? a : b);
       explored.push({ node: cur, from: parent[cur] });
+
+      // ── store heuristic value for display ──
+      if (!vizNodes[cur]) vizNodes[cur] = {};
+      const gVal = g[cur] || 0;
+      const hVal = parseFloat(heuristic(cur).toFixed(2));
+      const fVal = parseFloat((gVal + hVal).toFixed(2));
+      vizNodes[cur].sublabel = `g:${gVal} h:${hVal} f:${fVal}`;
 
       if (cur === endNode) {
         return { explored, path: tracePath(parent, endNode), cost: g[endNode] };
@@ -465,10 +471,6 @@ function solve() {
       }
     }
   }
-
-  return { explored, path: [], cost: Infinity };
-}
-
 
 // ══════════════════════════════════════════════════════════════
 //  ANIMATION RUNNER
