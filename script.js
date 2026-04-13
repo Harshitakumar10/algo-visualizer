@@ -11,7 +11,7 @@ let animDelay = 400;
 let running   = false;
 
 // Visual state (updated during animation)
-let vizNodes = {};    // { name: { color, scale } }
+let vizNodes = {};    // { name: { color, scale, sublabel } }
 let vizEdges = [];    // [ { from, to, color, width, dashed } ]
 
 const SPEED_MAP  = { 1: 900, 2: 600, 3: 400, 4: 200, 5: 80 };
@@ -97,7 +97,6 @@ function addEdge() {
     return;
   }
 
-  // Prevent duplicate edges
   const isDuplicate = edges.find(
     e => (e.from === from && e.to === to) || (e.from === to && e.to === from)
   );
@@ -147,7 +146,6 @@ function layoutNodes() {
 // ══════════════════════════════════════════════════════════════
 
 function refreshChips() {
-  // Node chips
   const nc = document.getElementById('node-chips');
   nc.innerHTML = '';
   Object.keys(nodes).forEach(n => {
@@ -157,7 +155,6 @@ function refreshChips() {
     nc.appendChild(c);
   });
 
-  // Edge chips
   const ec = document.getElementById('edge-chips');
   ec.innerHTML = '';
   edges.forEach((e, i) => {
@@ -212,7 +209,6 @@ function draw() {
     const color = ve ? ve.color : '#d1d5db';
     const width = ve ? ve.width : 2;
 
-    // Line
     ctx.beginPath();
     ctx.moveTo(from.x, from.y);
     ctx.lineTo(to.x, to.y);
@@ -235,7 +231,6 @@ function draw() {
     ctx.textBaseline = 'middle';
     ctx.fillText(e.weight, mx, my);
 
-    // Arrowhead
     drawArrow(from.x, from.y, to.x, to.y, color, 22);
   });
 
@@ -246,7 +241,6 @@ function draw() {
     const sc  = vn.scale || 1;
     const r   = 22 * sc;
 
-    // Glow effect for active nodes
     ctx.shadowColor = col === '#e5e7eb' ? 'transparent' : col;
     ctx.shadowBlur  = col === '#e5e7eb' ? 0 : 12;
 
@@ -259,12 +253,21 @@ function draw() {
     ctx.stroke();
     ctx.shadowBlur  = 0;
 
-    // Node label
+    // Node name label
     ctx.fillStyle    = col === '#e5e7eb' ? '#374151' : '#ffffff';
     ctx.font         = `bold ${r > 22 ? 14 : 13}px Inter, sans-serif`;
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(n.name, n.x, n.y);
+
+    // g / h / f sublabel below node (A* only)
+    if (vn.sublabel) {
+      ctx.fillStyle    = '#374151';
+      ctx.font         = '10px Inter, sans-serif';
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(vn.sublabel, n.x, n.y + r + 5);
+    }
 
     // START / GOAL label above node
     const isSt = n.name === startNode;
@@ -327,7 +330,6 @@ function getNeighbors(name) {
   return nbrs;
 }
 
-// Euclidean heuristic (scaled) for A*
 function heuristic(name) {
   if (!nodes[name] || !nodes[endNode]) return 0;
   const dx = nodes[name].x - nodes[endNode].x;
@@ -348,13 +350,12 @@ function tracePath(parent, end) {
 
 // ══════════════════════════════════════════════════════════════
 //  ALGORITHMS
-//  Each returns { explored: [{node, from}], path: [names], cost }
 // ══════════════════════════════════════════════════════════════
 
 function solve() {
-  const explored   = [];
-  const parent     = {};
-  const costSoFar  = {};
+  const explored  = [];
+  const parent    = {};
+  const costSoFar = {};
 
   parent[startNode]    = undefined;
   costSoFar[startNode] = 0;
@@ -375,7 +376,7 @@ function solve() {
       for (const nb of getNeighbors(cur)) {
         if (!visited.has(nb.node)) {
           visited.add(nb.node);
-          parent[nb.node]   = cur;
+          parent[nb.node]    = cur;
           costSoFar[nb.node] = (costSoFar[cur] || 0) + nb.cost;
           queue.push(nb.node);
         }
@@ -435,9 +436,10 @@ function solve() {
     }
 
   // ── A* ───────────────────────────────────────────────────
- } else {
+  } else {
     const g      = { [startNode]: 0 };
     const f      = { [startNode]: heuristic(startNode) };
+    const hStore = { [startNode]: heuristic(startNode) };
     const open   = new Set([startNode]);
     const closed = new Set();
 
@@ -445,15 +447,14 @@ function solve() {
       const cur = [...open].reduce((a, b) => (f[a] || Infinity) < (f[b] || Infinity) ? a : b);
       explored.push({ node: cur, from: parent[cur] });
 
-      // ── store heuristic value for display ──
-      if (!vizNodes[cur]) vizNodes[cur] = {};
-      const gVal = g[cur] || 0;
-      const hVal = parseFloat(heuristic(cur).toFixed(2));
-      const fVal = parseFloat((gVal + hVal).toFixed(2));
-      vizNodes[cur].sublabel = `g:${gVal} h:${hVal} f:${fVal}`;
-
       if (cur === endNode) {
-        return { explored, path: tracePath(parent, endNode), cost: g[endNode] };
+        return {
+          explored,
+          path: tracePath(parent, endNode),
+          cost: g[endNode],
+          gValues: g,
+          hValues: hStore,
+        };
       }
 
       open.delete(cur);
@@ -463,14 +464,22 @@ function solve() {
         if (closed.has(nb.node)) continue;
         const tentG = (g[cur] || 0) + nb.cost;
         if (!open.has(nb.node) || tentG < (g[nb.node] || Infinity)) {
-          parent[nb.node] = cur;
-          g[nb.node]      = tentG;
-          f[nb.node]      = tentG + heuristic(nb.node);
+          parent[nb.node]    = cur;
+          g[nb.node]         = tentG;
+          f[nb.node]         = tentG + heuristic(nb.node);
+          hStore[nb.node]    = heuristic(nb.node);
           open.add(nb.node);
         }
       }
     }
+
+    return { explored, path: [], cost: Infinity, gValues: g, hValues: hStore };
   }
+
+  // no path found for bfs / dfs / ucs
+  return { explored, path: [], cost: Infinity };
+}
+
 
 // ══════════════════════════════════════════════════════════════
 //  ANIMATION RUNNER
@@ -506,23 +515,32 @@ async function runAlgo() {
     const step = result.explored[i];
     const acol = ALGO_COLORS[algo];
 
-    // Highlight visited node
+    // Color the visited node
     vizNodes[step.node] = {
       color: step.node === startNode ? '#10b981' : step.node === endNode ? '#ef4444' : acol,
       scale: 1.15,
     };
-    // Shrink back after brief pop
+
+    // Show g / h / f values below node for A*
+    if (algo === 'astar' && result.gValues && result.hValues) {
+      const gVal = result.gValues[step.node] !== undefined ? result.gValues[step.node] : 0;
+      const hVal = parseFloat((result.hValues[step.node] || 0).toFixed(2));
+      const fVal = parseFloat((gVal + hVal).toFixed(2));
+      vizNodes[step.node].sublabel = `g:${gVal}  h:${hVal}  f:${fVal}`;
+    }
+
+    // Shrink back after pop animation
     setTimeout(() => {
       if (vizNodes[step.node]) vizNodes[step.node].scale = 1;
       draw();
     }, 200);
 
-    // Highlight traversed edge (dashed = exploring)
+    // Color the traversed edge (dashed while exploring)
     if (step.from) {
       vizEdges.push({ from: step.from, to: step.node, color: EXPLORE_COLOR, width: 3, dashed: true });
     }
 
-    // Add step badge to log
+    // Step badge in log
     const badge = document.createElement('span');
     badge.className = 'log-step current';
     badge.textContent = `${i + 1}. Visit ${step.node}${step.from ? ' from ' + step.from : ' (start)'}`;
@@ -533,7 +551,7 @@ async function runAlgo() {
     draw();
     await wait(animDelay);
 
-    badge.className = 'log-step'; // de-highlight old badge
+    badge.className = 'log-step';
   }
 
   await wait(300);
@@ -546,7 +564,7 @@ async function runAlgo() {
     return;
   }
 
-  // ── Phase 2: Dim explored, reveal optimal path ────────────
+  // ── Phase 2: Dim explored, highlight optimal path ─────────
   vizEdges.forEach(e => { e.color = '#e9d5ff'; e.width = 2; e.dashed = false; });
   Object.keys(vizNodes).forEach(n => {
     if (n !== startNode && n !== endNode) vizNodes[n].color = '#ddd6fe';
@@ -554,7 +572,6 @@ async function runAlgo() {
   draw();
   await wait(300);
 
-  // Animate the optimal path in green
   for (let i = 0; i < result.path.length - 1; i++) {
     const from = result.path[i];
     const to   = result.path[i + 1];
